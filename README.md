@@ -49,11 +49,11 @@ A robust NestJS backend API for the MotorGas staff management and forecourt oper
    
    Update the `.env` file with your database credentials:
    ```env
-   DB_HOST=102.218.215.35
+   DB_HOST=YOUR IP
    DB_PORT=3306
-   DB_USERNAME=citlogis_bryan
-   DB_PASSWORD=@bo9511221.qwerty
-   DB_DATABASE=citlogis_forecourt
+   DB_USERNAME=
+   DB_PASSWORD=
+   DB_DATABASE=
    JWT_SECRET=your-super-secret-jwt-key
    PORT=3000
    NODE_ENV=development
@@ -201,7 +201,7 @@ This backend is designed to work with the MotorGas Flutter app. The API endpoint
 
 ## 📄 License
 
-This project is proprietary software for MotorGas operations.
+This project is proprietary software for MotorGas operations BUILD BY BENJAMIN OKWAMA CITLOGISTICS SYSTEMS.
 
 ## 🆘 Support
 
