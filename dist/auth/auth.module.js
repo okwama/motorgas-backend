@@ -16,6 +16,7 @@ const auth_service_1 = require("./auth.service");
 const session_service_1 = require("./session.service");
 const staff_entity_1 = require("../entities/staff.entity");
 const token_entity_1 = require("../entities/token.entity");
+const role_entity_1 = require("../entities/role.entity");
 const jwt_strategy_1 = require("./jwt.strategy");
 let AuthModule = class AuthModule {
 };
@@ -23,7 +24,7 @@ exports.AuthModule = AuthModule;
 exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([staff_entity_1.Staff, token_entity_1.Token]),
+            typeorm_1.TypeOrmModule.forFeature([staff_entity_1.Staff, token_entity_1.Token, role_entity_1.Role]),
             passport_1.PassportModule,
             jwt_1.JwtModule.register({
                 secret: process.env.JWT_SECRET || 'your-secret-key',

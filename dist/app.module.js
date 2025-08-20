@@ -31,6 +31,7 @@ const auth_module_1 = require("./auth/auth.module");
 const leave_module_1 = require("./leave/leave.module");
 const upload_module_1 = require("./upload/upload.module");
 const sales_module_1 = require("./sales/sales.module");
+const roles_module_1 = require("./roles/roles.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -78,6 +79,7 @@ exports.AppModule = AppModule = __decorate([
             report_module_1.ReportModule,
             upload_module_1.UploadModule,
             sales_module_1.SalesModule,
+            roles_module_1.RolesModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

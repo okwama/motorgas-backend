@@ -20,15 +20,18 @@ const typeorm_2 = require("typeorm");
 const bcrypt = require("bcryptjs");
 const staff_entity_1 = require("../entities/staff.entity");
 const token_entity_1 = require("../entities/token.entity");
+const role_entity_1 = require("../entities/role.entity");
 const session_service_1 = require("./session.service");
 let AuthService = class AuthService {
     staffRepository;
     tokenRepository;
+    roleRepository;
     jwtService;
     sessionService;
-    constructor(staffRepository, tokenRepository, jwtService, sessionService) {
+    constructor(staffRepository, tokenRepository, roleRepository, jwtService, sessionService) {
         this.staffRepository = staffRepository;
         this.tokenRepository = tokenRepository;
+        this.roleRepository = roleRepository;
         this.jwtService = jwtService;
         this.sessionService = sessionService;
     }
@@ -182,13 +185,19 @@ let AuthService = class AuthService {
         if (existingEmployee) {
             throw new common_1.BadRequestException('Employee number already exists');
         }
+        const roleEntity = await this.roleRepository.findOne({
+            where: { name: role },
+        });
+        if (!roleEntity) {
+            throw new common_1.BadRequestException('Role not found');
+        }
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
         const newStaff = this.staffRepository.create({
             name,
             phone: formattedPhone,
             password: hashedPassword,
-            role_id: 0,
+            role_id: roleEntity.id,
             role,
             station_id,
             empl_no,
@@ -262,7 +271,9 @@ exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(staff_entity_1.Staff)),
     __param(1, (0, typeorm_1.InjectRepository)(token_entity_1.Token)),
+    __param(2, (0, typeorm_1.InjectRepository)(role_entity_1.Role)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         jwt_1.JwtService,
         session_service_1.SessionService])

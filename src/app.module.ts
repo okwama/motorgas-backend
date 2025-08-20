@@ -23,6 +23,7 @@ import { AuthModule } from './auth/auth.module';
 import { LeaveModule } from './leave/leave.module';
 import { UploadModule } from './upload/upload.module';
 import { SalesModule } from './sales/sales.module';
+import { RolesModule } from './roles/roles.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { SalesModule } from './sales/sales.module';
     ReportModule,
     UploadModule,
     SalesModule,
+    RolesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

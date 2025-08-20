@@ -8,11 +8,12 @@ import { AuthService } from './auth.service';
 import { SessionService } from './session.service';
 import { Staff } from '../entities/staff.entity';
 import { Token } from '../entities/token.entity';
+import { Role } from '../entities/role.entity';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Staff, Token]),
+    TypeOrmModule.forFeature([Staff, Token, Role]),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'your-secret-key',

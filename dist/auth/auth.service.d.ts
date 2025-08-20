@@ -3,6 +3,7 @@ import { Repository } from 'typeorm';
 import { Request } from 'express';
 import { Staff } from '../entities/staff.entity';
 import { Token } from '../entities/token.entity';
+import { Role } from '../entities/role.entity';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -11,9 +12,10 @@ import { SessionService, DeviceInfo } from './session.service';
 export declare class AuthService {
     private staffRepository;
     private tokenRepository;
+    private roleRepository;
     private jwtService;
     private sessionService;
-    constructor(staffRepository: Repository<Staff>, tokenRepository: Repository<Token>, jwtService: JwtService, sessionService: SessionService);
+    constructor(staffRepository: Repository<Staff>, tokenRepository: Repository<Token>, roleRepository: Repository<Role>, jwtService: JwtService, sessionService: SessionService);
     login(loginDto: LoginDto, request: Request): Promise<{
         success: boolean;
         token: string;

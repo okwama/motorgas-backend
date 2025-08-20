@@ -7,6 +7,7 @@ import { Request } from 'express';
 
 import { Staff } from '../entities/staff.entity';
 import { Token } from '../entities/token.entity';
+import { Role } from '../entities/role.entity';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -20,6 +21,8 @@ export class AuthService {
     private staffRepository: Repository<Staff>,
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
+    @InjectRepository(Role)
+    private roleRepository: Repository<Role>,
     private jwtService: JwtService,
     private sessionService: SessionService,
   ) {}
@@ -216,6 +219,15 @@ export class AuthService {
       throw new BadRequestException('Employee number already exists');
     }
 
+    // Find the role_id based on the role name
+    const roleEntity = await this.roleRepository.findOne({
+      where: { name: role },
+    });
+
+    if (!roleEntity) {
+      throw new BadRequestException('Role not found');
+    }
+
     // Hash password
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
@@ -225,7 +237,7 @@ export class AuthService {
       name,
       phone: formattedPhone, // Use formatted phone number
       password: hashedPassword,
-      role_id: 0, // Default role ID
+      role_id: roleEntity.id, // Use the found role_id
       role,
       station_id,
       empl_no,
