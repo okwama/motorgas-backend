@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Param, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, UseGuards, Request, Post } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -15,10 +15,52 @@ export class StaffController {
     private checkinRepository: Repository<CheckinRecord>,
   ) {}
 
+  @Get('all')
+  async getAllStaff(@Request() req) {
+    // Only managers can access all staff data
+    const currentStaff = await this.staffRepository.findOne({
+      where: { id: req.user.userId },
+    });
+
+    if (!currentStaff || currentStaff.role !== 'Manager') {
+      throw new Error('Unauthorized access - Manager role required');
+    }
+
+    const allStaff = await this.staffRepository.find({
+      relations: ['station'],
+      order: { name: 'ASC' },
+    });
+
+    return {
+      success: true,
+      data: allStaff.map(staff => ({
+        id: staff.id,
+        name: staff.name,
+        phone: staff.phone,
+        role: staff.role,
+        empl_no: staff.empl_no,
+        station_id: staff.station_id,
+        station: staff.station,
+        photo_url: staff.photo_url,
+        status: staff.status,
+        created_at: staff.created_at,
+      })),
+    };
+  }
+
   @Get(':id')
   async getStaffById(@Param('id') id: number, @Request() req) {
-    // Ensure user can only access their own profile
-    if (req.user.userId !== id) {
+    // Managers can access any staff profile, others can only access their own
+    const currentStaff = await this.staffRepository.findOne({
+      where: { id: req.user.userId },
+    });
+
+    if (!currentStaff) {
+      throw new Error('User not found');
+    }
+
+    // Allow access if user is manager or accessing their own profile
+    if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
       throw new Error('Unauthorized access');
     }
 
@@ -44,14 +86,49 @@ export class StaffController {
     };
   }
 
+  @Post('create')
+  async createStaff(@Body() staffData: any, @Request() req) {
+    // Only managers can create staff
+    const currentStaff = await this.staffRepository.findOne({
+      where: { id: req.user.userId },
+    });
+
+    if (!currentStaff || currentStaff.role !== 'Manager') {
+      throw new Error('Unauthorized access - Manager role required');
+    }
+
+    const newStaff = this.staffRepository.create(staffData);
+    const savedStaff = await this.staffRepository.save(newStaff);
+
+    return {
+      success: true,
+      data: savedStaff,
+      message: 'Staff created successfully',
+    };
+  }
+
   @Put(':id')
   async updateStaff(@Param('id') id: number, @Body() updateData: any, @Request() req) {
-    // Ensure user can only update their own profile
-    if (req.user.userId !== id) {
+    // Managers can update any staff, others can only update their own profile
+    const currentStaff = await this.staffRepository.findOne({
+      where: { id: req.user.userId },
+    });
+
+    if (!currentStaff) {
+      throw new Error('User not found');
+    }
+
+    // Allow update if user is manager or updating their own profile
+    if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
       throw new Error('Unauthorized access');
     }
 
-    const allowedFields = ['name', 'phone', 'photo_url'];
+    // Define allowed fields based on role
+    let allowedFields = ['name', 'phone', 'photo_url'];
+    if (currentStaff.role === 'Manager') {
+      allowedFields = ['name', 'phone', 'photo_url', 'role', 'empl_no', 'id_no', 'salary', 'status'];
+    }
+
     const filteredData = Object.keys(updateData)
       .filter(key => allowedFields.includes(key))
       .reduce((obj, key) => {
@@ -61,13 +138,22 @@ export class StaffController {
 
     await this.staffRepository.update(id, filteredData);
 
-    return { success: true, message: 'Profile updated successfully' };
+    return { success: true, message: 'Staff updated successfully' };
   }
 
   @Get(':id/statistics')
   async getStaffStatistics(@Param('id') id: number, @Request() req) {
-    // Ensure user can only access their own statistics
-    if (req.user.userId !== id) {
+    // Managers can access any staff statistics, others can only access their own
+    const currentStaff = await this.staffRepository.findOne({
+      where: { id: req.user.userId },
+    });
+
+    if (!currentStaff) {
+      throw new Error('User not found');
+    }
+
+    // Allow access if user is manager or accessing their own statistics
+    if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
       throw new Error('Unauthorized access');
     }
 
@@ -112,8 +198,17 @@ export class StaffController {
 
   @Get(':id/activity')
   async getStaffActivity(@Param('id') id: number, @Request() req) {
-    // Ensure user can only access their own activity
-    if (req.user.userId !== id) {
+    // Managers can access any staff activity, others can only access their own
+    const currentStaff = await this.staffRepository.findOne({
+      where: { id: req.user.userId },
+    });
+
+    if (!currentStaff) {
+      throw new Error('User not found');
+    }
+
+    // Allow access if user is manager or accessing their own activity
+    if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
       throw new Error('Unauthorized access');
     }
 
@@ -137,8 +232,17 @@ export class StaffController {
 
   @Get(':id/performance')
   async getStaffPerformance(@Param('id') id: number, @Request() req) {
-    // Ensure user can only access their own performance
-    if (req.user.userId !== id) {
+    // Managers can access any staff performance, others can only access their own
+    const currentStaff = await this.staffRepository.findOne({
+      where: { id: req.user.userId },
+    });
+
+    if (!currentStaff) {
+      throw new Error('User not found');
+    }
+
+    // Allow access if user is manager or accessing their own performance
+    if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
       throw new Error('Unauthorized access');
     }
 
@@ -182,4 +286,6 @@ export class StaffController {
       total_checkins: totalCheckins,
     };
   }
+
+
 }

@@ -45,9 +45,9 @@ export class SosController {
     };
   }
 
-  @Get('guard/:guardId')
-  async findByGuard(@Param('guardId') guardId: string) {
-    const [sosAlerts, total] = await this.sosService.findByGuard(+guardId);
+  @Get('staff/:staffId')
+  async findByStaff(@Param('staffId') staffId: string) {
+    const [sosAlerts, total] = await this.sosService.findByStaff(+staffId);
     return {
       data: sosAlerts,
       total,

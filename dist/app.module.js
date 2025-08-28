@@ -32,6 +32,7 @@ const leave_module_1 = require("./leave/leave.module");
 const upload_module_1 = require("./upload/upload.module");
 const sales_module_1 = require("./sales/sales.module");
 const roles_module_1 = require("./roles/roles.module");
+const vehicle_conversions_module_1 = require("./vehicle-conversions/vehicle-conversions.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -52,6 +53,14 @@ exports.AppModule = AppModule = __decorate([
                 entities: [__dirname + '/**/*.entity{.ts,.js}'],
                 synchronize: false,
                 logging: process.env.NODE_ENV === 'development',
+                connectTimeout: 30000,
+                acquireTimeout: 30000,
+                extra: {
+                    connectionLimit: 10,
+                    acquireTimeout: 30000,
+                    timeout: 30000,
+                    reconnect: true,
+                },
             }),
             jwt_1.JwtModule.register({
                 secret: process.env.JWT_SECRET || 'your-secret-key',
@@ -80,6 +89,7 @@ exports.AppModule = AppModule = __decorate([
             upload_module_1.UploadModule,
             sales_module_1.SalesModule,
             roles_module_1.RolesModule,
+            vehicle_conversions_module_1.VehicleConversionsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

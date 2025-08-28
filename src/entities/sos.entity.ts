@@ -18,13 +18,13 @@ export class Sos {
   status: string;
 
   @Column({ type: 'varchar', length: 255 })
-  guard_name: string;
+  staff_name: string;
 
   @Column({ type: 'text', nullable: true })
   comment: string;
 
   @Column({ type: 'int' })
-  guard_id: number;
+  staff_id: number;
 
   @CreateDateColumn()
   created_at: Date;

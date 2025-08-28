@@ -41,8 +41,8 @@ let SosController = class SosController {
             total,
         };
     }
-    async findByGuard(guardId) {
-        const [sosAlerts, total] = await this.sosService.findByGuard(+guardId);
+    async findByStaff(staffId) {
+        const [sosAlerts, total] = await this.sosService.findByStaff(+staffId);
         return {
             data: sosAlerts,
             total,
@@ -77,12 +77,12 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], SosController.prototype, "findActive", null);
 __decorate([
-    (0, common_1.Get)('guard/:guardId'),
-    __param(0, (0, common_1.Param)('guardId')),
+    (0, common_1.Get)('staff/:staffId'),
+    __param(0, (0, common_1.Param)('staffId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
-], SosController.prototype, "findByGuard", null);
+], SosController.prototype, "findByStaff", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

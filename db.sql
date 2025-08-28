@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Aug 14, 2025 at 09:05 PM
+-- Generation Time: Aug 20, 2025 at 01:28 PM
 -- Server version: 10.6.22-MariaDB-cll-lve
 -- PHP Version: 8.4.10
 
@@ -33,6 +33,156 @@ CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `CleanupExpiredTokens` ()   BEGI
     SELECT ROW_COUNT() as cleaned_tokens;
 END$$
 
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `DeleteLpgConversion` (IN `p_id` INT)   BEGIN
+    DELETE FROM lpg_conversions WHERE id = p_id;
+    SELECT ROW_COUNT() as affected_rows;
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `DeleteSosAlert` (IN `p_id` INT)   BEGIN
+    DELETE FROM sos WHERE id = p_id;
+    SELECT ROW_COUNT() as affected_rows;
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `GetLpgConversions` (IN `p_station_id` INT, IN `p_start_date` DATE, IN `p_end_date` DATE, IN `p_conversion_type` VARCHAR(20))   BEGIN
+    SELECT 
+        lc.id,
+        lc.car_registration,
+        lc.car_model,
+        lc.conversion_type,
+        lc.notes,
+        lc.station_id,
+        lc.staff_id,
+        lc.conversion_date,
+        lc.created_at,
+        lc.updated_at,
+        s.name as staff_name,
+        st.name as station_name
+    FROM lpg_conversions lc
+    LEFT JOIN staff s ON lc.staff_id = s.id
+    LEFT JOIN stations st ON lc.station_id = st.id
+    WHERE (p_station_id IS NULL OR lc.station_id = p_station_id)
+        AND (p_start_date IS NULL OR lc.conversion_date >= p_start_date)
+        AND (p_end_date IS NULL OR lc.conversion_date <= p_end_date)
+        AND (p_conversion_type IS NULL OR lc.conversion_type = p_conversion_type)
+    ORDER BY lc.conversion_date DESC, lc.created_at DESC;
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `GetLpgConversionStats` (IN `p_station_id` INT, IN `p_start_date` DATE, IN `p_end_date` DATE)   BEGIN
+    SELECT 
+        COUNT(*) as total_conversions,
+        SUM(CASE WHEN conversion_type = 'complete' THEN 1 ELSE 0 END) as complete_conversions,
+        SUM(CASE WHEN conversion_type = 'partial' THEN 1 ELSE 0 END) as partial_conversions,
+        COUNT(DISTINCT car_registration) as unique_cars,
+        COUNT(DISTINCT staff_id) as staff_involved
+    FROM lpg_conversions
+    WHERE (p_station_id IS NULL OR station_id = p_station_id)
+        AND (p_start_date IS NULL OR conversion_date >= p_start_date)
+        AND (p_end_date IS NULL OR conversion_date <= p_end_date);
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `GetSosAlertCount` (IN `p_status` VARCHAR(20), IN `p_staff_id` INT)   BEGIN
+    SELECT COUNT(*) as total
+    FROM sos s
+    WHERE (p_status IS NULL OR s.status = p_status)
+        AND (p_staff_id IS NULL OR s.staff_id = p_staff_id);
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `GetSosAlerts` (IN `p_status` VARCHAR(20), IN `p_staff_id` INT, IN `p_page` INT, IN `p_limit` INT)   BEGIN
+    DECLARE offset_val INT;
+    SET offset_val = (p_page - 1) * p_limit;
+    
+    SELECT 
+        s.id,
+        s.sos_type,
+        s.latitude,
+        s.longitude,
+        s.status,
+        s.staff_name,
+        s.comment,
+        s.staff_id,
+        s.created_at,
+        s.updated_at
+    FROM sos s
+    WHERE (p_status IS NULL OR s.status = p_status)
+        AND (p_staff_id IS NULL OR s.staff_id = p_staff_id)
+    ORDER BY s.created_at DESC
+    LIMIT p_limit OFFSET offset_val;
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `InsertLpgConversion` (IN `p_car_registration` VARCHAR(20), IN `p_car_model` VARCHAR(100), IN `p_conversion_type` ENUM('complete','partial'), IN `p_notes` TEXT, IN `p_station_id` INT, IN `p_staff_id` INT, IN `p_conversion_date` DATE)   BEGIN
+    INSERT INTO lpg_conversions (
+        car_registration,
+        car_model,
+        conversion_type,
+        notes,
+        station_id,
+        staff_id,
+        conversion_date
+    ) VALUES (
+        p_car_registration,
+        p_car_model,
+        p_conversion_type,
+        p_notes,
+        p_station_id,
+        p_staff_id,
+        p_conversion_date
+    );
+    
+    SELECT LAST_INSERT_ID() as id;
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `InsertSosAlert` (IN `p_sos_type` VARCHAR(191), IN `p_latitude` DOUBLE, IN `p_longitude` DOUBLE, IN `p_status` VARCHAR(191), IN `p_staff_name` VARCHAR(255), IN `p_comment` TEXT, IN `p_staff_id` INT)   BEGIN
+    INSERT INTO sos (
+        sos_type,
+        latitude,
+        longitude,
+        status,
+        staff_name,
+        comment,
+        staff_id
+    ) VALUES (
+        p_sos_type,
+        p_latitude,
+        p_longitude,
+        p_status,
+        p_staff_name,
+        p_comment,
+        p_staff_id
+    );
+    
+    SELECT LAST_INSERT_ID() as id;
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `UpdateLpgConversion` (IN `p_id` INT, IN `p_car_registration` VARCHAR(20), IN `p_car_model` VARCHAR(100), IN `p_conversion_type` ENUM('complete','partial'), IN `p_notes` TEXT, IN `p_conversion_date` DATE)   BEGIN
+    UPDATE lpg_conversions 
+    SET 
+        car_registration = p_car_registration,
+        car_model = p_car_model,
+        conversion_type = p_conversion_type,
+        notes = p_notes,
+        conversion_date = p_conversion_date,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = p_id;
+    
+    SELECT ROW_COUNT() as affected_rows;
+END$$
+
+CREATE DEFINER=`citlogis`@`localhost` PROCEDURE `UpdateSosAlert` (IN `p_id` INT, IN `p_sos_type` VARCHAR(191), IN `p_latitude` DOUBLE, IN `p_longitude` DOUBLE, IN `p_status` VARCHAR(191), IN `p_staff_name` VARCHAR(255), IN `p_comment` TEXT, IN `p_staff_id` INT)   BEGIN
+    UPDATE sos 
+    SET 
+        sos_type = p_sos_type,
+        latitude = p_latitude,
+        longitude = p_longitude,
+        status = p_status,
+        staff_name = p_staff_name,
+        comment = p_comment,
+        staff_id = p_staff_id,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = p_id;
+    
+    SELECT ROW_COUNT() as affected_rows;
+END$$
+
 --
 -- Functions
 --
@@ -47,6 +197,63 @@ CREATE DEFINER=`citlogis`@`localhost` FUNCTION `GetActiveDeviceCount` (`user_id`
 END$$
 
 DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `account_category`
+--
+
+CREATE TABLE `account_category` (
+  `id` int(3) NOT NULL,
+  `name` varchar(20) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `account_category`
+--
+
+INSERT INTO `account_category` (`id`, `name`) VALUES
+(1, 'Assets'),
+(2, 'Liabilities'),
+(3, 'Equity'),
+(4, 'Revenue'),
+(5, 'Expenses');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `account_types`
+--
+
+CREATE TABLE `account_types` (
+  `id` int(11) NOT NULL,
+  `account_type` varchar(100) NOT NULL,
+  `account_category` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `account_types`
+--
+
+INSERT INTO `account_types` (`id`, `account_type`, `account_category`, `created_at`) VALUES
+(4, 'Fixed Assets', 1, '2025-06-15 12:20:35'),
+(5, 'Non-current Assets', 1, '2025-06-15 12:23:45'),
+(6, 'Current Assets', 1, '2025-06-15 12:24:10'),
+(7, 'Receivable', 1, '2025-06-15 12:25:37'),
+(8, 'Prepayment', 1, '2025-06-15 12:26:44'),
+(9, 'Bank and Cash', 1, '2025-06-15 12:27:20'),
+(10, 'Payable', 2, '2025-06-15 12:28:32'),
+(11, 'Current Liabilities', 2, '2025-06-15 12:29:50'),
+(12, 'Credit Card', 2, '2025-06-15 12:30:13'),
+(13, 'Equity', 3, '2025-06-15 12:30:59'),
+(14, 'Income', 4, '2025-06-15 12:31:33'),
+(15, 'Cost of Revenue', 5, '2025-06-15 12:32:33'),
+(16, 'Expense', 5, '2025-06-15 12:33:02'),
+(17, 'Depreciation', 5, '2025-06-15 12:35:11'),
+(18, 'Current Year Earnings', 3, '2025-06-15 12:36:17'),
+(19, 'Other Income', 4, '2025-06-15 15:04:27');
 
 -- --------------------------------------------------------
 
@@ -95,11 +302,177 @@ CREATE TABLE `branches` (
 --
 
 INSERT INTO `branches` (`id`, `client_id`, `name`, `address`, `phone`, `email`, `contact_person`, `created_at`, `updated_at`) VALUES
-(1, 1, 'Branch 1', 'here', NULL, NULL, 'BRYAN OTIENO ONYANGOss', '2025-06-07 11:45:52', '2025-07-03 14:07:06'),
-(3, 1, 'bryan otieno', 'Nairobi', '0790193625', 'bryanotieno09@gmail.com', 'BRYAN OTIENO ONYANGO', '2025-06-07 14:17:26', '2025-06-07 14:17:26'),
+(1, 1, 'KDB 111A', 'here', NULL, NULL, 'BRYAN OTIENO ONYANGOss', '2025-06-07 11:45:52', '2025-08-20 07:04:13'),
+(3, 1, 'KDP 001A', 'Nairobi', '0790193625', 'bryanotieno09@gmail.com', 'BRYAN OTIENO ONYANGO', '2025-06-07 14:17:26', '2025-08-20 07:04:01'),
 (4, 2, 'KDS 111A', 'Nairobi', NULL, NULL, 'BRYAN OTIENO ONYANGO', '2025-06-08 07:14:02', '2025-07-03 14:09:51'),
-(5, 2, 'BRYAN OTIENO ONYANGO', 'Nairobi', '', '', '', '2025-07-03 14:19:10', '2025-07-03 14:19:10'),
-(6, 2, 'BRYAN OTIENO ONYANGO', 'Nairobi', '0790193625', 'bryanotieno09@gmail.com', 'BRYAN OTIENO ONYANGO', '2025-07-03 14:19:26', '2025-07-03 14:19:26');
+(5, 2, 'KDA 123A', 'Nairobi', '', '', '', '2025-07-03 14:19:10', '2025-08-20 07:03:24'),
+(6, 2, 'KCH 221A', 'Nairobi', '0790193625', 'bryanotieno09@gmail.com', 'BRYAN OTIENO ONYANGO', '2025-07-03 14:19:26', '2025-08-20 07:03:38');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `chart_of_accounts`
+--
+
+CREATE TABLE `chart_of_accounts` (
+  `id` int(11) NOT NULL,
+  `account_name` varchar(100) NOT NULL,
+  `account_code` varchar(20) NOT NULL,
+  `account_type` int(11) NOT NULL,
+  `parent_account_id` int(11) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `is_active` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `chart_of_accounts`
+--
+
+INSERT INTO `chart_of_accounts` (`id`, `account_name`, `account_code`, `account_type`, `parent_account_id`, `description`, `created_at`, `updated_at`, `is_active`) VALUES
+(3, 'Fixtures and Fittings', '003000', 4, 1, '', '2025-06-15 13:19:13', '2025-07-07 18:00:36', 1),
+(4, 'Land and Buildings', '004000', 4, 1, '', '2025-06-15 13:20:02', '2025-07-07 18:00:36', 1),
+(5, 'Motor Vehicles', '005000', 4, 1, '', '2025-06-15 13:21:08', '2025-07-07 18:00:36', 1),
+(6, 'Office equipment (inc computer equipment)\n', '006000', 4, 1, '', '2025-06-15 13:26:32', '2025-07-07 18:00:36', 1),
+(7, 'Plant and Machinery', '007000', 4, 1, '', '2025-06-15 13:27:13', '2025-07-07 18:00:36', 1),
+(8, 'Intangible Assets -ERP & Sales App', '008000', 5, 1, '', '2025-06-15 13:28:15', '2025-07-07 18:00:36', 1),
+(9, 'Biological Assets', '009000', 5, 1, '', '2025-06-15 13:28:54', '2025-07-07 18:00:36', 1),
+(10, 'Stock', '100001', 6, 1, '', '2025-06-15 13:30:13', '2025-07-07 18:00:36', 1),
+(11, 'Stock Interim (Received)', '100002', 6, 1, '', '2025-06-15 13:30:59', '2025-07-07 18:00:36', 1),
+(12, 'Debtors Control Account', '110000', 7, 1, ' | Last invoice: INV-3-1751913238102 | Last invoice: INV-2-1751918138904 | Last invoice: INV-3-1751996124894 | Last invoice: INV-2-1752309325399 | Last invoice: INV-2-1752320810962', '2025-06-15 13:32:13', '2025-07-07 18:00:36', 1),
+(13, 'Debtors Control Account (POS)', '110001', 7, 1, '', '2025-06-15 13:33:00', '2025-07-07 18:00:36', 1),
+(14, 'Other debtors', '110002', 7, 1, '', '2025-06-15 14:39:31', '2025-07-07 18:00:36', 1),
+(15, 'Prepayments', '110003', 8, 1, '', '2025-06-15 14:40:01', '2025-07-07 18:00:36', 1),
+(16, 'Purchase Tax Control Account', '110004', 6, 1, '', '2025-06-15 14:41:11', '2025-07-07 18:00:36', 1),
+(17, 'WithHolding Tax Advance on', '110005', 6, 1, '', '2025-06-15 14:41:56', '2025-07-07 18:00:36', 1),
+(18, 'Bank Suspense Account', '110006', 6, 1, '', '2025-06-15 14:42:24', '2025-07-07 18:00:36', 1),
+(19, 'Outstanding Receipts', '110007', 7, 1, '', '2025-06-15 14:42:57', '2025-07-07 18:00:36', 1),
+(20, 'Outstanding Payments', '110008', 6, 1, '', '2025-06-15 14:43:27', '2025-07-07 18:00:36', 1),
+(21, 'DTB KES', '120001', 9, 1, '', '2025-06-15 14:44:02', '2025-07-07 18:00:36', 1),
+(22, 'DTB USD', '120002', 9, 1, '', '2025-06-15 14:44:41', '2025-07-07 18:00:36', 1),
+(23, 'M-pesa', '120003', 9, 1, '', '2025-06-15 14:45:07', '2025-07-07 18:00:36', 1),
+(24, 'Cash', '120004', 9, 1, '', '2025-06-15 14:45:26', '2025-07-07 18:00:36', 1),
+(25, 'DTB-PICTURES PAYMENTS', '120005', 9, 1, '', '2025-06-15 14:46:11', '2025-07-07 18:00:36', 1),
+(26, 'ABSA', '120006', 9, 1, '', '2025-06-15 14:46:42', '2025-07-07 18:00:36', 1),
+(27, 'SANLAM MMF-USD', '120007', 9, 1, '', '2025-06-15 14:47:26', '2025-07-07 18:00:36', 1),
+(28, 'ABSA-USD', '120008', 9, 1, '', '2025-06-15 14:47:49', '2025-07-07 18:00:36', 1),
+(29, 'ECO BANK KES', '120009', 9, 1, '', '2025-06-15 14:48:23', '2025-07-07 18:00:36', 1),
+(30, 'Accounts Payables', '210000', 10, 2, '', '2025-06-15 14:50:18', '2025-07-07 18:00:36', 1),
+(31, 'Other Creditors', '210002', 11, 2, '', '2025-06-15 14:50:56', '2025-07-07 18:00:36', 1),
+(32, 'Accrued Liabilities', '210003', 11, 2, '', '2025-06-15 14:51:26', '2025-07-07 18:00:36', 1),
+(33, 'Company Credit Card', '210004', 12, 2, '', '2025-06-15 14:51:55', '2025-07-07 18:00:36', 1),
+(34, 'Bad debt provision', '210005', 11, 2, '', '2025-06-15 14:52:40', '2025-07-07 18:00:36', 1),
+(35, 'Sales Tax Control Account', '210006', 11, 2, '', '2025-06-15 14:53:12', '2025-07-07 18:00:36', 1),
+(36, 'Withholding Tax Payable', '210007', 11, 2, '', '2025-06-15 14:53:51', '2025-07-07 18:00:36', 1),
+(37, 'PAYE', '210008', 10, 2, '', '2025-06-15 14:54:27', '2025-07-07 18:00:36', 1),
+(38, 'Net Wages', '210009', 10, 2, '', '2025-06-15 14:55:05', '2025-07-07 18:00:36', 1),
+(39, 'NSSF', '210010', 10, 2, '', '2025-06-15 14:55:32', '2025-07-07 18:00:36', 1),
+(40, 'NHIF', '210011', 10, 2, '', '2025-06-15 14:56:11', '2025-07-07 18:00:36', 1),
+(41, 'AHL', '210012', 10, 2, '', '2025-06-15 14:56:42', '2025-07-07 18:00:36', 1),
+(42, 'Due To and From Directors', '210013', 11, 2, '', '2025-06-15 14:57:16', '2025-07-07 18:00:36', 1),
+(43, 'Due To and From Related Party- MSP', '210014', 11, 2, '', '2025-06-15 14:57:46', '2025-07-07 18:00:36', 1),
+(44, 'Due To Other Parties', '210015', 11, 2, '', '2025-06-15 14:58:11', '2025-07-07 18:00:36', 1),
+(45, 'Corporation Tax', '210016', 10, 2, '', '2025-06-15 14:58:35', '2025-07-07 18:00:36', 1),
+(46, 'Wage After Tax: Accrued Liabilities', '210022', 10, 2, '', '2025-06-15 14:58:59', '2025-07-07 18:00:36', 1),
+(47, 'Due To and From Related Party- GQ', '210024', 11, 2, '', '2025-06-15 14:59:52', '2025-07-07 18:00:36', 1),
+(48, 'Due To and From Woosh Intl- TZ', '210034', 11, 2, '', '2025-06-15 15:00:20', '2025-07-07 18:00:36', 1),
+(49, 'Share Capital', '300001', 13, 3, '', '2025-06-15 15:00:43', '2025-07-07 18:00:36', 1),
+(50, 'Retained Earnings', '300002', 13, 3, '', '2025-06-15 15:01:19', '2025-07-07 18:00:36', 1),
+(51, 'Other reserves', '300003', 13, 3, '', '2025-06-15 15:01:39', '2025-07-07 18:00:36', 1),
+(52, 'Capital', '300004', 13, 3, '', '2025-06-15 15:01:59', '2025-07-07 18:00:36', 1),
+(53, 'Sales Revenue', '400001', 14, 4, '', '2025-06-15 15:02:21', '2025-07-07 18:00:36', 1),
+(54, 'GOLD PUFF SALES', '400002', 14, 4, '', '2025-06-15 15:02:50', '2025-07-07 18:00:36', 1),
+(55, 'WILD LUCY SALES', '400003', 14, 4, '', '2025-06-15 15:03:15', '2025-07-07 18:00:36', 1),
+(56, 'Cash Discount Gain', '400004', 19, 0, '', '2025-06-15 15:04:54', '2025-07-07 18:00:36', 1),
+(57, 'Profits/Losses on disposals of assets', '400005', 14, 4, '', '2025-06-15 15:05:26', '2025-07-07 18:00:36', 1),
+(58, 'Other Income', '400006', 19, 0, '', '2025-06-15 15:05:48', '2025-07-07 18:00:36', 1),
+(59, 'GOLD PUFF RECHARGEABLE SALES', '400007', 14, 4, '', '2025-06-15 15:06:13', '2025-07-07 18:00:36', 1),
+(60, 'GOLD POUCH 5 DOT SALES', '400008', 14, 4, '', '2025-06-15 15:06:37', '2025-07-07 18:00:36', 1),
+(61, 'GOLD POUCH 3 DOT SALES', '400009', 14, 4, '', '2025-06-15 15:07:14', '2025-07-07 18:00:36', 1),
+(62, 'GOLD PUFF 3000 PUFFS RECHARGEABLE SALES', '400010', 14, 4, '', '2025-06-15 15:07:39', '2025-07-07 18:00:36', 1),
+(63, 'Cost of sales 1', '500000', 15, 5, '', '2025-06-15 15:08:06', '2025-07-07 18:00:36', 1),
+(64, 'Cost of sales 2', '500001', 15, 5, '', '2025-06-15 15:08:26', '2025-07-07 18:00:36', 1),
+(65, 'GOLD PUFF COST OF SALES', '500002', 15, 5, '', '2025-06-15 15:08:53', '2025-07-07 18:00:36', 1),
+(66, 'WILD LUCY COST OF SALES', '500003', 15, 5, '', '2025-06-15 15:09:13', '2025-07-07 18:00:36', 1),
+(67, 'Other costs of sales - Vapes Write Offs', '500004', 15, 5, '', '2025-06-15 15:09:36', '2025-07-07 18:00:36', 1),
+(68, 'Other costs of sales', '500005', 15, 5, '', '2025-06-15 15:09:59', '2025-07-07 18:00:36', 1),
+(69, 'Freight and delivery - COS E-Cigarette', '500006', 15, 5, '', '2025-06-15 15:10:25', '2025-07-07 18:00:36', 1),
+(70, 'Discounts given - COS', '500007', 15, 5, '', '2025-06-15 15:10:45', '2025-07-07 18:00:36', 1),
+(71, 'Direct labour - COS', '500008', 15, 5, '', '2025-06-15 15:11:07', '2025-07-07 18:00:36', 1),
+(72, 'Commissions and fees', '500009', 15, 5, '', '2025-06-15 15:11:30', '2025-07-07 18:00:36', 1),
+(73, 'Bar Codes/ Stickers', '500010', 15, 5, '', '2025-06-15 15:12:01', '2025-07-07 18:00:36', 1),
+(74, 'GOLD PUFF RECHARGEABLE COST OF SALES', '500011', 15, 5, '', '2025-06-15 15:12:35', '2025-07-07 18:00:36', 1),
+(75, 'Rebates,Price Diff & Discounts', '500012', 15, 5, '', '2025-06-15 15:12:55', '2025-07-07 18:00:36', 1),
+(76, 'GOLD POUCH 5 DOT COST OF SALES', '500013', 15, 5, '', '2025-06-15 15:13:17', '2025-07-07 18:00:36', 1),
+(77, 'GOLD POUCH 3 DOT COST OF SALES', '500014', 15, 5, '', '2025-06-15 15:13:38', '2025-07-07 18:00:36', 1),
+(78, 'GOLD PUFF 3000 PUFFS RECHARGEABLE COST OF SALES', '500015', 15, 5, '', '2025-06-15 15:14:02', '2025-07-07 18:00:36', 1),
+(79, 'Vehicle Washing', '510001', 16, 5, '', '2025-06-15 15:31:22', '2025-07-07 18:00:36', 1),
+(80, 'Vehicle R&M', '510002', 16, 5, '', '2025-06-15 15:31:49', '2025-07-07 18:00:36', 1),
+(81, 'Vehicle Parking Fee', '510003', 16, 5, '', '2025-06-15 15:32:15', '2025-07-07 18:00:36', 1),
+(82, 'Vehicle Insurance fee', '510004', 16, 5, '', '2025-06-15 15:32:47', '2025-07-07 18:00:36', 1),
+(83, 'Vehicle fuel cost', '510005', 16, 5, '', '2025-06-15 15:33:09', '2025-07-07 18:00:36', 1),
+(84, 'Driver Services', '510006', 16, 5, '', '2025-06-15 15:33:35', '2025-07-07 18:00:36', 1),
+(85, 'Travel expenses - selling expenses', '510007', 16, 5, '', '2025-06-15 15:34:04', '2025-07-07 18:00:36', 1),
+(86, 'Travel expenses - Sales Fuel Allowance', '510008', 16, 5, '', '2025-06-15 15:34:30', '2025-07-07 18:00:36', 1),
+(87, 'Travel expenses - Sales Car Lease', '510009', 16, 5, '', '2025-06-15 15:35:05', '2025-07-07 18:00:36', 1),
+(88, 'Travel expenses - Other Travel Expenses', '510010', 16, 5, '', '2025-06-15 15:35:55', '2025-07-07 18:00:36', 1),
+(89, 'Travel expenses- General Fuel Allowance', '510011', 16, 5, '', '2025-06-15 15:36:51', '2025-07-07 18:00:36', 1),
+(90, 'Travel expenses - General Car Lease', '510012', 16, 5, '', '2025-06-15 15:37:20', '2025-07-07 18:00:36', 1),
+(91, 'Travel Expense- General and admin expenses', '510013', 16, 5, '', '2025-06-15 15:37:46', '2025-07-07 18:00:36', 1),
+(92, 'Mpesa handling fee', '510014', 16, 5, '', '2025-06-15 15:38:09', '2025-07-07 18:00:36', 1),
+(93, 'Other Types of Expenses-Advertising Expenses', '510015', 16, 5, '', '2025-06-15 15:38:34', '2025-07-07 18:00:36', 1),
+(94, 'Merchandize', '510016', 16, 5, '', '2025-06-15 15:38:58', '2025-07-07 18:00:36', 1),
+(95, 'Influencer Payment', '510017', 16, 5, '', '2025-06-15 15:39:20', '2025-07-07 18:00:36', 1),
+(96, 'Advertizing Online', '510018', 16, 5, '', '2025-06-15 15:39:41', '2025-07-07 18:00:36', 1),
+(97, 'Trade Marketing Costs', '510019', 16, 5, '', '2025-06-15 15:40:05', '2025-07-07 18:00:36', 1),
+(98, 'Activation', '510020', 16, 5, '', '2025-06-15 15:40:25', '2025-07-07 18:00:36', 1),
+(99, 'Other selling expenses', '510021', 16, 5, '', '2025-06-15 15:40:47', '2025-07-07 18:00:36', 1),
+(100, 'Other general and administrative expenses', '510022', 16, 5, '', '2025-06-15 15:41:08', '2025-07-07 18:00:36', 1),
+(101, 'Rent or Lease of Apartments', '510023', 16, 5, '', '2025-06-15 15:41:30', '2025-07-07 18:00:36', 1),
+(102, 'Penalty & Interest Account', '510024', 16, 5, '', '2025-06-15 15:41:58', '2025-07-07 18:00:36', 1),
+(103, 'Dues and subscriptions', '510025', 16, 5, '', '2025-06-15 15:42:19', '2025-07-07 18:00:36', 1),
+(104, 'Utilities (Electricity and Water)', '510026', 16, 5, '', '2025-06-15 15:42:43', '2025-07-07 18:00:36', 1),
+(105, 'Telephone and postage', '510027', 16, 5, '', '2025-06-15 15:43:13', '2025-07-07 18:00:36', 1),
+(106, 'Stationery and printing', '510028', 16, 5, '', '2025-06-15 15:43:33', '2025-07-07 18:00:36', 1),
+(107, 'Service Fee', '510029', 16, 5, '', '2025-06-15 15:43:54', '2025-07-07 18:00:36', 1),
+(108, 'Repairs and Maintenance', '510030', 16, 5, '', '2025-06-15 15:44:15', '2025-07-07 18:00:36', 1),
+(109, 'Rent or lease payments', '510031', 16, 5, '', '2025-06-15 15:44:45', '2025-07-07 18:00:36', 1),
+(110, 'Office Internet', '510032', 16, 5, '', '2025-06-15 15:45:05', '2025-07-07 18:00:36', 1),
+(111, 'Office decoration Expense', '510033', 16, 5, '', '2025-06-15 15:45:26', '2025-07-07 18:00:36', 1),
+(112, 'Office Cleaning and Sanitation', '510034', 16, 5, '', '2025-06-15 15:45:51', '2025-07-07 18:00:36', 1),
+(113, 'IT Development', '510035', 16, 5, '', '2025-06-15 15:46:12', '2025-07-07 18:00:36', 1),
+(114, 'Insurance - Liability', '510036', 16, 5, '', '2025-06-15 15:46:34', '2025-07-07 18:00:36', 1),
+(115, 'Business license fee', '510037', 16, 5, '', '2025-06-15 15:46:58', '2025-07-07 18:00:36', 1),
+(116, 'Other Legal and Professional Fees', '510038', 16, 5, '', '2025-06-15 15:47:31', '2025-07-07 18:00:36', 1),
+(117, 'IT Expenses', '510039', 16, 5, '', '2025-06-15 15:47:51', '2025-07-07 18:00:36', 1),
+(118, 'Recruitment fee', '510040', 16, 5, '', '2025-06-15 15:48:18', '2025-07-07 18:00:36', 1),
+(119, 'Payroll Expenses(Before Tax)', '510041', 16, 5, '', '2025-06-15 15:48:44', '2025-07-07 18:00:36', 1),
+(120, 'Outsourced Labor Services', '510042', 16, 5, '', '2025-06-15 15:49:07', '2025-07-07 18:00:36', 1),
+(121, 'NSSF ( Company Paid)', '510043', 16, 5, '', '2025-06-15 15:49:34', '2025-07-07 18:00:36', 1),
+(122, 'Employee welfare', '510044', 16, 5, '', '2025-06-15 15:49:56', '2025-07-07 18:00:36', 1),
+(123, 'Bonus & Allowance', '510045', 16, 5, '', '2025-06-15 15:50:19', '2025-07-07 18:00:36', 1),
+(124, 'Affordable Housing Levy (AHL)', '510046', 16, 5, '', '2025-06-15 15:50:43', '2025-07-07 18:00:36', 1),
+(125, 'Income tax expense', '510047', 16, 5, '', '2025-06-15 15:51:05', '2025-07-07 18:00:36', 1),
+(126, 'Team Building', '510048', 16, 5, '', '2025-06-15 15:51:28', '2025-07-07 18:00:36', 1),
+(127, 'Meetings', '510049', 16, 5, '', '2025-06-15 15:51:55', '2025-07-07 18:00:36', 1),
+(128, 'Meals and entertainment', '510050', 16, 5, '', '2025-06-15 15:52:20', '2025-07-07 18:00:36', 1),
+(129, 'Interest expense', '510051', 16, 5, '', '2025-06-15 15:52:40', '2025-07-07 18:00:36', 1),
+(130, 'Bad debts', '510052', 17, 0, '', '2025-06-15 15:53:05', '2025-07-07 18:00:36', 1),
+(131, 'Bank handling fee', '510054', 16, 5, '', '2025-06-15 15:53:29', '2025-07-07 18:00:36', 1),
+(132, 'Patents & Trademarks Depreciation', '520001', 17, 0, '', '2025-06-15 15:54:02', '2025-07-07 18:00:36', 1),
+(133, 'Fixtures and fittings Depreciation', '520002', 16, 5, '', '2025-06-15 15:54:23', '2025-07-07 18:00:36', 1),
+(134, 'Land and buildings Depreciation', '520003', 17, 0, '', '2025-06-15 15:54:45', '2025-07-07 18:00:36', 1),
+(135, 'Motor vehicles Depreciation', '520004', 17, 0, '', '2025-06-15 15:55:09', '2025-07-07 18:00:36', 1),
+(136, 'Office equipment (inc computer equipment) Depreciation', '520005', 17, 0, '', '2025-06-15 15:55:35', '2025-07-07 18:00:36', 1),
+(137, 'Plant and machinery Depreciation', '520006', 17, 0, '', '2025-06-15 15:55:58', '2025-07-07 18:00:36', 1),
+(138, 'Undistributed Profits/Losses', '999999', 18, 3, '', '2025-06-15 15:56:19', '2025-07-07 18:00:36', 1),
+(139, 'Accumulated Depreciation', '520007', 17, 0, NULL, '2025-07-08 06:19:04', '2025-07-08 06:19:04', 1),
+(140, 'Accounts Receivable', '1100', 7, 0, 'Amounts owed by customers for goods or services provided | Last invoice: INV-2-1752321159077 | Last invoice: INV-2-1752397570019 | Last invoice: INV-2-1752649457669', '2025-07-12 09:40:18', '2025-07-12 09:40:18', 1),
+(141, 'PAYE Payable', '37', 10, 0, NULL, '2025-08-10 10:32:21', '2025-08-10 10:32:21', 1),
+(142, 'Net Wages', '38', 16, 0, NULL, '2025-08-10 10:32:21', '2025-08-10 10:32:21', 1),
+(143, 'NSSF Payable', '39', 2, 0, NULL, '2025-08-10 10:32:21', '2025-08-10 10:32:21', 1),
+(144, 'NHIF Payable', '40', 2, 0, NULL, '2025-08-10 10:32:21', '2025-08-10 10:32:21', 1);
 
 -- --------------------------------------------------------
 
@@ -131,8 +504,8 @@ CREATE TABLE `checkin_records` (
 --
 
 INSERT INTO `checkin_records` (`id`, `user_id`, `user_name`, `station_id`, `station_name`, `check_in_latitude`, `check_in_longitude`, `check_out_latitude`, `check_out_longitude`, `address`, `status`, `time_in`, `time_out`, `qr_data`, `created_at`, `updated_at`) VALUES
-(12, 25, 'Joseph Okwam', 1, 'Station 1', -1.30089695, 36.77774156, NULL, NULL, 'Ndemi Lane, Nairobi', 1, '2025-07-04 20:49:05', NULL, '1', '2025-07-04 17:49:10', '2025-07-04 17:49:10'),
-(13, 45, 'Benjamin Okwama', 1, 'Kisumu Station', -1.30088242, 36.77773372, NULL, NULL, 'Ndemi Lane, Nairobi', 1, '2025-08-14 21:33:13', NULL, 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={\"station_id\":1,\"station_name\":\"Kisumu Station\"}', '2025-08-14 18:33:13', '2025-08-14 18:33:13');
+(12, 47, 'Joseph Okwam', 1, 'Kisumu Station', -1.30089695, 36.77774156, -1.30089695, 36.77774156, 'Ndemi Lane, Nairobi', 0, '2025-08-19 08:49:05', '2025-08-19 18:34:03', 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={\"station_id\":1,\"station_name\":\"Kisumu Station\"}', '2025-07-04 17:49:10', '2025-08-20 03:36:04'),
+(13, 45, 'Benjamin Okwama', 1, 'Kisumu Station', -1.30088242, 36.77773372, -1.30088242, 36.77773372, 'Ndemi Lane, Nairobi', 0, '2025-08-19 08:33:13', '2025-08-19 19:34:13', 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={\"station_id\":1,\"station_name\":\"Kisumu Station\"}', '2025-08-14 18:33:13', '2025-08-20 03:36:40');
 
 -- --------------------------------------------------------
 
@@ -159,7 +532,8 @@ CREATE TABLE `clients` (
 
 INSERT INTO `clients` (`id`, `name`, `account_number`, `email`, `phone`, `balance`, `address`, `created_at`, `updated_at`, `client_type_Id`) VALUES
 (1, 'BRYAN OTIENO ONYANGO', 'nn', 'bryanotieno09@gmail.com', '0790193625', 0.00, 'Nairobi', '2025-06-07 12:11:01', '2025-08-14 18:57:21', 2),
-(2, 'Client 2', '777', 'bryanotieno09@gmail.com', '0790193625', 0.00, 'Nairobi', '2025-06-08 09:13:29', '2025-08-14 18:57:25', 2);
+(2, 'Client 2', '777', 'bryanotieno09@gmail.com', '0790193625', 0.00, 'Nairobi', '2025-06-08 09:13:29', '2025-08-14 18:57:25', 2),
+(12, 'Benjamin Okwama', 'WALK-1755202056297', 'bennjiokwama@fmail.com', '0706166875', 0.00, 'Kda 3566', '2025-08-14 20:07:36', '2025-08-14 20:07:36', 1);
 
 -- --------------------------------------------------------
 
@@ -203,7 +577,10 @@ CREATE TABLE `client_ledger` (
 
 INSERT INTO `client_ledger` (`id`, `client_id`, `amount_in`, `amount_out`, `balance`, `reference`, `date`, `created_at`) VALUES
 (1, 2, 100.00, 0.00, 100.00, 'Test payment', '2025-08-14 03:00:00', '2025-08-14 17:52:19'),
-(2, 2, 0.00, 333.00, 433.00, 'Fuel sale - 1L at 333/L from station 1', '2025-08-14 03:00:00', '2025-08-14 18:50:19');
+(2, 2, 0.00, 333.00, 433.00, 'Fuel sale - 1L at 333/L from station 1', '2025-08-14 03:00:00', '2025-08-14 18:50:19'),
+(3, 1, 0.00, 6660.00, -6660.00, 'Fuel sale - 20L at 333/L from station Kisumu Station', '2025-08-14 21:45:15', '2025-08-14 19:45:15'),
+(4, 1, 0.00, 3996.00, -10656.00, 'Fuel sale - 12L at 333/L from station Kisumu Station', '2025-08-15 17:20:15', '2025-08-15 15:20:15'),
+(5, 1, 0.00, 999.00, -9657.00, 'Fuel sale - 3L at 333/L from station 2', '2025-08-20 03:00:00', '2025-08-20 05:52:48');
 
 -- --------------------------------------------------------
 
@@ -256,6 +633,35 @@ INSERT INTO `leave_types` (`id`, `name`, `description`, `default_days`, `is_acti
 (5, 'Compassionate Leave', NULL, 0, 1, '2025-08-13 15:14:42', '2025-08-13 15:14:42', 5.00, 0, 0.00, 0),
 (6, 'Study Leave', NULL, 0, 1, '2025-08-13 15:14:42', '2025-08-13 15:14:42', 10.00, 0, 0.00, 1),
 (7, 'Unpaid Leave', NULL, 0, 1, '2025-08-13 15:14:42', '2025-08-13 15:14:42', 0.00, 0, 0.00, 0);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `lpg_conversions`
+--
+
+CREATE TABLE `lpg_conversions` (
+  `id` int(11) NOT NULL,
+  `car_registration` varchar(20) NOT NULL COMMENT 'Car registration number',
+  `car_model` varchar(100) NOT NULL COMMENT 'Car model/make',
+  `conversion_type` enum('complete','partial') NOT NULL DEFAULT 'complete' COMMENT 'Type of conversion',
+  `notes` text DEFAULT NULL COMMENT 'Additional notes about the conversion',
+  `station_id` int(11) NOT NULL COMMENT 'Station where conversion was recorded',
+  `staff_id` int(11) NOT NULL COMMENT 'Staff member who recorded the conversion',
+  `conversion_date` date NOT NULL COMMENT 'Date when conversion was done',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='LPG conversion journal entries';
+
+--
+-- Dumping data for table `lpg_conversions`
+--
+
+INSERT INTO `lpg_conversions` (`id`, `car_registration`, `car_model`, `conversion_type`, `notes`, `station_id`, `staff_id`, `conversion_date`, `created_at`, `updated_at`) VALUES
+(1, 'KCA 123A', 'Toyota Probox', 'complete', 'Full LPG conversion completed successfully', 1, 1, '2024-01-15', '2025-08-20 10:44:54', '2025-08-20 10:44:54'),
+(2, 'KCB 456B', 'Nissan Vanette', 'partial', 'Partial conversion - engine modification only', 1, 1, '2024-01-16', '2025-08-20 10:44:54', '2025-08-20 10:44:54'),
+(3, 'KCC 789C', 'Suzuki Every', 'complete', 'Complete conversion with new fuel system', 1, 2, '2024-01-17', '2025-08-20 10:44:54', '2025-08-20 10:44:54'),
+(4, 'KCD 012D', 'Toyota Hiace', 'partial', 'Partial conversion - fuel tank installation', 1, 2, '2024-01-18', '2025-08-20 10:44:54', '2025-08-20 10:44:54');
 
 -- --------------------------------------------------------
 
@@ -348,25 +754,29 @@ CREATE TABLE `sales` (
 --
 
 INSERT INTO `sales` (`id`, `client_id`, `station_id`, `vehicle_id`, `quantity`, `unit_price`, `total_price`, `sale_date`, `created_at`, `staff_id`) VALUES
-(1, 2, 1, 4, 3.00, 333.00, 999.00, '2025-08-14 00:00:00', '2025-08-14 10:37:34', NULL),
-(2, 2, 1, 4, 2.00, 333.00, 666.00, '2025-08-14 00:00:00', '2025-08-14 10:54:55', NULL),
-(3, 2, 1, 5, 4.00, 333.00, 1332.00, '2025-08-14 00:00:00', '2025-08-14 11:07:41', NULL),
-(4, 2, 1, 5, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 11:35:33', NULL),
-(5, 2, 1, 5, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 11:35:33', NULL),
-(6, 2, 1, 5, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 11:35:38', NULL),
-(7, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 11:37:00', NULL),
-(8, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 12:00:05', NULL),
-(9, 2, 1, 4, 1.99, 333.00, 662.67, '2025-08-14 03:00:00', '2025-08-14 12:17:25', NULL),
-(10, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 12:18:13', NULL),
-(11, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 17:35:05', NULL),
-(12, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 17:42:53', NULL),
-(13, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 17:47:34', NULL),
-(14, 2, 1, 4, 33.00, 333.00, 10989.00, '2025-08-14 03:00:00', '2025-08-14 17:48:59', NULL),
-(15, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 17:54:36', NULL),
-(16, 2, 1, 4, 4.00, 333.00, 1332.00, '2025-08-14 03:00:00', '2025-08-14 18:19:25', NULL),
-(17, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 18:22:00', NULL),
-(18, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 18:26:10', NULL),
-(19, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 18:50:19', NULL);
+(1, 2, 1, 4, 3.00, 333.00, 999.00, '2025-08-14 00:00:00', '2025-08-14 10:37:34', 45),
+(2, 2, 1, 4, 2.00, 333.00, 666.00, '2025-08-14 00:00:00', '2025-08-14 10:54:55', 45),
+(3, 2, 1, 5, 4.00, 333.00, 1332.00, '2025-08-14 00:00:00', '2025-08-14 11:07:41', 45),
+(4, 2, 1, 5, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 11:35:33', 45),
+(5, 2, 1, 5, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 11:35:33', 45),
+(6, 2, 1, 5, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 11:35:38', 45),
+(7, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 11:37:00', 45),
+(8, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 00:00:00', '2025-08-14 12:00:05', 45),
+(9, 2, 1, 4, 1.99, 333.00, 662.67, '2025-08-14 03:00:00', '2025-08-14 12:17:25', 45),
+(10, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 12:18:13', 45),
+(11, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 17:35:05', 45),
+(12, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 17:42:53', 45),
+(13, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 17:47:34', 45),
+(14, 2, 1, 4, 33.00, 333.00, 10989.00, '2025-08-14 03:00:00', '2025-08-14 17:48:59', 45),
+(15, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 17:54:36', 45),
+(16, 2, 1, 4, 4.00, 333.00, 1332.00, '2025-08-14 03:00:00', '2025-08-14 18:19:25', 45),
+(17, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 18:22:00', 45),
+(18, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 18:26:10', 45),
+(19, 2, 1, 4, 1.00, 333.00, 333.00, '2025-08-14 03:00:00', '2025-08-14 18:50:19', 45),
+(20, 1, 1, 1, 20.00, 333.00, 6660.00, '2025-08-14 22:45:15', '2025-08-14 19:45:15', 45),
+(21, 12, 1, 1, 5.00, 333.00, 1665.00, '2025-08-14 23:07:36', '2025-08-14 20:07:37', 45),
+(22, 1, 1, 1, 12.00, 333.00, 3996.00, '2025-08-15 18:20:15', '2025-08-15 15:20:15', 45),
+(23, 1, 2, 3, 3.00, 333.00, 999.00, '2025-08-20 03:00:00', '2025-08-20 05:52:47', NULL);
 
 -- --------------------------------------------------------
 
@@ -384,6 +794,34 @@ CREATE TABLE `seals` (
   `confirmed_by_id` int(11) NOT NULL,
   `status` enum('broken','assigned','re_assigned') NOT NULL DEFAULT 'assigned'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `sos`
+--
+
+CREATE TABLE `sos` (
+  `id` int(11) NOT NULL,
+  `sos_type` varchar(191) NOT NULL DEFAULT 'sos' COMMENT 'Type of SOS alert',
+  `latitude` double NOT NULL COMMENT 'Latitude coordinate',
+  `longitude` double NOT NULL COMMENT 'Longitude coordinate',
+  `status` varchar(191) NOT NULL DEFAULT 'active' COMMENT 'Status of the SOS alert',
+  `staff_name` varchar(255) NOT NULL COMMENT 'Name of the staff member',
+  `comment` text DEFAULT NULL COMMENT 'Additional comments about the SOS',
+  `staff_id` int(11) NOT NULL COMMENT 'ID of the staff member',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='SOS emergency alerts';
+
+--
+-- Dumping data for table `sos`
+--
+
+INSERT INTO `sos` (`id`, `sos_type`, `latitude`, `longitude`, `status`, `staff_name`, `comment`, `staff_id`, `created_at`, `updated_at`) VALUES
+(4, 'emergency', -1.2921, 36.8219, 'active', 'John Doe', 'Medical emergency at station', 45, '2025-08-20 11:18:06', '2025-08-20 11:18:26'),
+(5, 'security', -1.2921, 36.8219, 'resolved', 'Jane Smith', 'Suspicious activity reported', 45, '2025-08-20 11:18:06', '2025-08-20 11:18:31'),
+(6, 'fire', -1.2921, 36.8219, 'active', 'Mike Johnson', 'Fire alarm triggered', 47, '2025-08-20 11:18:06', '2025-08-20 11:18:35');
 
 -- --------------------------------------------------------
 
@@ -413,7 +851,8 @@ CREATE TABLE `staff` (
 --
 
 INSERT INTO `staff` (`id`, `name`, `phone`, `password`, `role_id`, `role`, `station_id`, `empl_no`, `id_no`, `salary`, `photo_url`, `status`, `created_at`, `updated_at`) VALUES
-(45, 'Benjamin Okwama', '+254706166875', '$2b$10$ojLoI8eO6UTNI0atYIGGReCB/FckufT3qvedQUPcVS4nysZo5VxxS', 4, 'Attendant', 0, '34056', NULL, 0.00, NULL, 1, '2025-08-14 19:06:05.510', '2025-08-14 18:48:48');
+(45, 'Benjamin Okwama', '+254706166875', '$2b$10$ojLoI8eO6UTNI0atYIGGReCB/FckufT3qvedQUPcVS4nysZo5VxxS', 4, 'Attendant', 1, '34056', NULL, 0.00, NULL, 1, '2025-08-14 19:06:05.510', '2025-08-14 19:38:45'),
+(47, 'Joseph Okwama', '+254711376366', '$2b$10$wZcrcWD7L8U93z4Lbg.x8us8xCRpwj1K7R5k5lyTrdepJWq5XT5G2', 1, 'Manager', 1, '340000', 124, 0.00, NULL, 1, '2025-08-15 18:58:56.010', '2025-08-20 03:29:09');
 
 -- --------------------------------------------------------
 
@@ -480,6 +919,8 @@ CREATE TABLE `stations` (
   `address` varchar(255) NOT NULL,
   `phone` varchar(20) DEFAULT NULL,
   `email` varchar(255) DEFAULT NULL,
+  `longitude` varchar(200) NOT NULL,
+  `latitude` varchar(200) NOT NULL,
   `current_fuel_price` decimal(11,2) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
@@ -489,11 +930,11 @@ CREATE TABLE `stations` (
 -- Dumping data for table `stations`
 --
 
-INSERT INTO `stations` (`id`, `name`, `address`, `phone`, `email`, `current_fuel_price`, `created_at`, `updated_at`) VALUES
-(1, 'Kisumu Station', 'Nairobi', '0790193625', 'bryanotieno09@gmail.com', 333.00, '2025-07-03 16:48:10', '2025-08-14 09:35:02'),
-(2, 'Ngong road', '14300', '0790193625', 'bryanotieno09@gmail.com', 0.00, '2025-07-03 16:54:40', '2025-07-03 16:54:40'),
-(3, 'Westlands Station', 'Westlands, Nairobi', '0712345678', 'westlands@motorgas.com', 0.00, '2025-07-04 17:38:28', '2025-07-04 17:38:28'),
-(4, 'Mombasa Station', 'Mombasa City', '0723456789', 'mombasa@motorgas.com', 0.00, '2025-07-04 17:38:28', '2025-07-04 17:38:28');
+INSERT INTO `stations` (`id`, `name`, `address`, `phone`, `email`, `longitude`, `latitude`, `current_fuel_price`, `created_at`, `updated_at`) VALUES
+(1, 'Kisumu Station', 'Kisumu Town', '0790193625', 'bryanotieno09@gmail.com', '36.7749168', '-0.0824353', 333.00, '2025-07-03 16:48:10', '2025-08-20 06:05:36'),
+(2, 'Ngong road', '14300', '0790193625', 'bryanotieno09@gmail.com', '34.6099325', '-1.3009495', 333.00, '2025-07-03 16:54:40', '2025-08-20 06:05:48'),
+(3, 'Westlands Station', 'Westlands, Nairobi', '0712345678', 'westlands@motorgas.com', '36.7749168', '-0.0824353', 333.00, '2025-07-04 17:38:28', '2025-08-20 06:15:44'),
+(4, 'Mombasa Station', 'Mombasa City', '0723456789', 'mombasa@motorgas.com', '39.58369', '-4.0351846', 333.00, '2025-07-04 17:38:28', '2025-08-20 06:33:46');
 
 -- --------------------------------------------------------
 
@@ -549,7 +990,11 @@ INSERT INTO `station_stock_ledger` (`id`, `station_id`, `quantity_in`, `quantity
 (9, 1, 0.00, 4.00, 461.01, '2025-08-14 03:00:00', 'Fuel sale - 4L to client 2, vehicle 4', '2025-08-14 18:19:26'),
 (10, 1, 0.00, 1.00, 460.01, '2025-08-14 03:00:00', 'Fuel sale - 1L to client 2, vehicle 4', '2025-08-14 18:22:00'),
 (11, 1, 0.00, 1.00, 459.01, '2025-08-14 03:00:00', 'Fuel sale - 1L to client 2, vehicle 4', '2025-08-14 18:26:10'),
-(12, 1, 0.00, 1.00, 458.01, '2025-08-14 03:00:00', 'Fuel sale - 1L to client 2, vehicle 4', '2025-08-14 18:50:19');
+(12, 1, 0.00, 1.00, 458.01, '2025-08-14 03:00:00', 'Fuel sale - 1L to client 2, vehicle 4', '2025-08-14 18:50:19'),
+(13, 1, 0.00, 20.00, 485.00, '2025-08-14 21:45:16', 'Fuel sale - 20L to client BRYAN OTIENO ONYANGO, vehicle 1', '2025-08-14 19:45:16'),
+(14, 1, 0.00, 5.00, 500.00, '2025-08-14 22:07:37', 'Fuel sale - 5L to client Benjamin Okwama, vehicle 1', '2025-08-14 20:07:37'),
+(15, 1, 0.00, 12.00, 493.00, '2025-08-15 17:20:15', 'Fuel sale - 12L to client BRYAN OTIENO ONYANGO, vehicle 1', '2025-08-15 15:20:15'),
+(16, 2, 0.00, 3.00, 44.00, '2025-08-20 03:00:00', 'Fuel sale - 3L to client 1, vehicle 3', '2025-08-20 05:52:48');
 
 -- --------------------------------------------------------
 
@@ -570,7 +1015,8 @@ CREATE TABLE `station_store` (
 --
 
 INSERT INTO `station_store` (`id`, `station_id`, `product_id`, `qty`, `updated_at`) VALUES
-(1, 1, 1, 459.01, '2025-08-14 20:50:19');
+(1, 1, 1, 422.01, '2025-08-15 17:20:15'),
+(2, 2, 1, 47.00, '2025-08-20 07:52:48');
 
 -- --------------------------------------------------------
 
@@ -792,7 +1238,17 @@ INSERT INTO `tokens` (`id`, `staff_id`, `access_token`, `refresh_token`, `expire
 (192, 44, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ0LCJyb2xlIjoiVGVhbSBMZWFkZXIiLCJlbXBsTm8iOiIzNDA1MTYzIiwibmFtZSI6IkJlbmphbWluIG9rd2FtYSIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NTUxNzQ5MzgsImV4cCI6MTc1NTE5MjkzOH0.zOwr7qu6-G2UHpbwDXj74O7r9rQTJ9E666EjxvjyewY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ0LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTE3NDkzOCwiZXhwIjoxNzU3NzY2OTM4fQ.2xvErZxPDKJQLjWAoeDxbjpxp4Ysy_QuhtzDlhrflRI', '2025-08-14 20:35:38.658', '2025-08-14 14:35:38.935', '2025-08-14 14:35:38.935', 1, '2025-08-14 14:35:38.935', NULL, '::ffff:192.168.100.2', 'Y3VybC84LjcuMS06OmZmZmY6MTkyLjE2', 'curl/8.7.1', 'desktop', '1.0.0', 0, '2025-09-13 15:35:38.658', 1, NULL),
 (193, 44, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ0LCJyb2xlIjoiVGVhbSBMZWFkZXIiLCJlbXBsTm8iOiIzNDA1MTYzIiwibmFtZSI6IkJlbmphbWluIG9rd2FtYSIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NTUxNzQ5OTksImV4cCI6MTc1NTE5Mjk5OX0.q9LSJTaHNfvUxD4SQuwIbmsEah8ahJW2CIDoPbWgnxI', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ0LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTE3NDk5OSwiZXhwIjoxNzU3NzY2OTk5fQ.v5hImFwMbRDfq-2RRKHq_O4gAfoJtoitpwtmy1IkttE', '2025-08-14 20:36:39.406', '2025-08-14 14:36:39.716', '2025-08-14 14:36:39.716', 1, '2025-08-14 14:36:39.716', NULL, '::ffff:192.168.100.2', 'Y3VybC84LjcuMS06OmZmZmY6MTkyLjE2', 'curl/8.7.1', 'desktop', '1.0.0', 0, '2025-09-13 15:36:39.406', 0, NULL),
 (194, 44, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ0LCJyb2xlIjoiVGVhbSBMZWFkZXIiLCJlbXBsTm8iOiIzNDA1MTYzIiwibmFtZSI6IkJlbmphbWluIG9rd2FtYSIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3NTUxNzUxMDUsImV4cCI6MTc1NTE5MzEwNX0.RPgBPCLuEkHX90UnhI64WG87jXjowi8wV3D7nds8kAo', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ0LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTE3NTEwNSwiZXhwIjoxNzU3NzY3MTA1fQ.F3JM1fRzj9wdkKuBpYTmQh99SwkmyRye7DWXLO4MOKs', '2025-08-14 20:38:25.757', '2025-08-14 14:38:26.021', '2025-08-14 14:38:26.021', 1, '2025-08-14 14:38:26.021', NULL, '::ffff:192.168.100.15', '52cd94a543259d0eae7d9a56855ed180', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-13 15:38:25.757', 0, NULL),
-(195, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiVGVhbSBMZWFkZXIiLCJlbXBsTm8iOiIzNDA1NiIsIm5hbWUiOiJCZW5qYW1pbiBPa3dhbWEiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzU1MTg3NjA0LCJleHAiOjE3NTUyMDU2MDR9.YfxFdfRCN3AmYGnXYRywA9gG1as0wkW5-wqzlX2T4l4', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTE4NzYwNCwiZXhwIjoxNzU3Nzc5NjA0fQ.Im1o4_Sq1PpAf6biQ_2COAR6AIUZrmtR4vqgMA7Up7E', '2025-08-15 00:06:44.593', '2025-08-14 18:06:44.656', '2025-08-14 18:06:44.656', 1, '2025-08-14 18:06:44.656', NULL, '::ffff:192.168.100.3', 'e8ec03c937d5b9eea97b177bdd8e4868', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-13 19:06:44.593', 1, NULL);
+(195, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiVGVhbSBMZWFkZXIiLCJlbXBsTm8iOiIzNDA1NiIsIm5hbWUiOiJCZW5qYW1pbiBPa3dhbWEiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzU1MTg3NjA0LCJleHAiOjE3NTUyMDU2MDR9.YfxFdfRCN3AmYGnXYRywA9gG1as0wkW5-wqzlX2T4l4', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTE4NzYwNCwiZXhwIjoxNzU3Nzc5NjA0fQ.Im1o4_Sq1PpAf6biQ_2COAR6AIUZrmtR4vqgMA7Up7E', '2025-08-15 00:06:44.593', '2025-08-14 18:06:44.656', '2025-08-15 05:57:49.000', 0, '2025-08-14 18:06:44.656', NULL, '::ffff:192.168.100.3', 'e8ec03c937d5b9eea97b177bdd8e4868', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-13 19:06:44.593', 1, NULL),
+(196, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiQXR0ZW5kYW50IiwiZW1wbE5vIjoiMzQwNTYiLCJuYW1lIjoiQmVuamFtaW4gT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTIwNTg5NCwiZXhwIjoxNzU1MjIzODk0fQ.E7V8gUflMQURBmsKkdlllTX8sMGeTWBycz1LX9f_53M', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTIwNTg5NCwiZXhwIjoxNzU3Nzk3ODk0fQ.d-etfwxmjzxwKEsKMSu48y-bx0Dh92B4zQzS9BNnXG8', '2025-08-15 05:11:34.762', '2025-08-14 23:11:34.925', '2025-08-15 17:03:45.000', 0, '2025-08-14 23:11:34.925', NULL, '::ffff:192.168.100.3', 'c7b535cc184cdfd8a33de205e9204610', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-14 00:11:34.762', 0, NULL),
+(197, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiQXR0ZW5kYW50IiwiZW1wbE5vIjoiMzQwNTYiLCJuYW1lIjoiQmVuamFtaW4gT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTIyOTkxNSwiZXhwIjoxNzU1MjQ3OTE1fQ.Rs2LAqWpyppPoVa1FOFpbZA2xr8eBgZBMeLSIN1dtnw', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTIyOTkxNSwiZXhwIjoxNzU3ODIxOTE1fQ.kIl4s9QOiW9bEw-D8KN3ykACZTvv6aalJEKFaqJ7mvk', '2025-08-15 11:51:55.591', '2025-08-15 05:51:55.133', '2025-08-20 06:14:16.000', 0, '2025-08-15 05:51:55.133', NULL, '::ffff:192.168.100.3', 'e522858b7bd89966eb05644cc39e2331', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-14 06:51:55.591', 0, NULL),
+(198, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiQXR0ZW5kYW50IiwiZW1wbE5vIjoiMzQwNTYiLCJuYW1lIjoiQmVuamFtaW4gT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTIzMDI3MCwiZXhwIjoxNzU1MjQ4MjcwfQ.KEtng5vvCvB5qFxpkHnZFCXKhZSn12arABVsPRolOyM', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTIzMDI3MCwiZXhwIjoxNzU3ODIyMjcwfQ.FX0LnupGX22GbvmZxD9t5Qz7vns3oflOUOExUdeNvck', '2025-08-15 11:57:50.063', '2025-08-15 05:57:49.576', '2025-08-20 11:29:51.000', 0, '2025-08-15 05:57:49.576', NULL, '::ffff:192.168.100.2', 'Y3VybC84LjcuMS06OmZmZmY6MTkyLjE2', 'curl/8.7.1', 'desktop', '1.0.0', 0, '2025-09-14 06:57:50.063', 0, NULL),
+(199, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiQXR0ZW5kYW50IiwiZW1wbE5vIjoiMzQwNTYiLCJuYW1lIjoiQmVuamFtaW4gT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTI3MDIyNiwiZXhwIjoxNzU1Mjg4MjI2fQ.AnZWc8MdeupdU684DU2vRRQKp6e0TEGlMEZ3hiZTKl0', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTI3MDIyNiwiZXhwIjoxNzU3ODYyMjI2fQ._h32bFYHlxyriopW7b_SJS12Y7HuwVa5gvQH0pkMVGc', '2025-08-15 23:03:46.459', '2025-08-15 17:03:45.955', '2025-08-20 13:09:59.000', 0, '2025-08-15 17:03:45.955', NULL, '::ffff:192.168.100.3', '7eb86af46421e67678a340693019dc77', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-14 18:03:46.459', 0, NULL),
+(200, 47, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ3LCJyb2xlIjoiTWFuYWdlciIsImVtcGxObyI6IjM0MDAwMCIsIm5hbWUiOiJKb3NlcGggT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTI3MzU2NiwiZXhwIjoxNzU1MjkxNTY2fQ.Sl7utWlyvhptTN_1OymMpascHCFAF9CjyRUPujNDXh8', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ3LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTI3MzU2NiwiZXhwIjoxNzU3ODY1NTY2fQ.Ns5EAOFvUabkzQXWOpq5AOO_LvzxIvHIPY8fWYTK6f0', '2025-08-15 23:59:26.148', '2025-08-15 17:59:25.673', '2025-08-15 17:59:25.673', 1, '2025-08-15 17:59:25.673', NULL, '::ffff:192.168.100.3', 'a5e7492e5119eeb750f9860430529e37', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-14 18:59:26.148', 1, NULL),
+(201, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiQXR0ZW5kYW50IiwiZW1wbE5vIjoiMzQwNTYiLCJuYW1lIjoiQmVuamFtaW4gT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTY2MzI1NywiZXhwIjoxNzU1NjgxMjU3fQ.6MOpibdsGarFk_SGmI3x18SZwoQu4Mbp0mhLRC55tF0', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTY2MzI1NywiZXhwIjoxNzU4MjU1MjU3fQ.tPjnHIkUJ_ANOfo0_Jwq8MZmI3D__uhqqFKPb_TVWHE', '2025-08-20 12:14:17.033', '2025-08-20 06:14:16.919', '2025-08-20 06:14:16.919', 1, '2025-08-20 06:14:16.919', NULL, '::ffff:192.168.100.3', 'cfcdcda46f41d05c9ea6e77110fade85', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-19 07:14:17.033', 0, NULL),
+(202, 47, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ3LCJyb2xlIjoiTWFuYWdlciIsImVtcGxObyI6IjM0MDAwMCIsIm5hbWUiOiJKb3NlcGggT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTY2NTc3MSwiZXhwIjoxNzU1NjgzNzcxfQ.vSvzMKX5Ej1TCiadZPDMC8DC3cqknGAxcr1GpPwlZug', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ3LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTY2NTc3MSwiZXhwIjoxNzU4MjU3NzcxfQ.BvX4dGvnL8TggitkHjgo9H2eRZBuDWivhzrNGItyegQ', '2025-08-20 09:56:11.607', '2025-08-20 06:56:11.491', '2025-08-20 06:56:11.491', 1, '2025-08-20 06:56:11.491', NULL, '41.90.172.188', '7192db890465df19a6f99ec0f03a3f6c', 'Dart/3.8 (dart:io)', 'desktop', '1.0.0', 0, '2025-09-19 04:56:11.607', 0, NULL),
+(203, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiQXR0ZW5kYW50IiwiZW1wbE5vIjoiMzQwNTYiLCJuYW1lIjoiQmVuamFtaW4gT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTY4MjE5MSwiZXhwIjoxNzU1NzAwMTkxfQ.v41vVXxg6-jAUVcKT3X_aDnVxUXN0FVWKxZAB5WE4b8', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTY4MjE5MSwiZXhwIjoxNzU4Mjc0MTkxfQ.U_dI4n55UEXK4j1v71WtfVtTOxPtc6c5w0-tcV70ckU', '2025-08-20 17:29:51.563', '2025-08-20 11:29:51.376', '2025-08-20 11:29:51.376', 1, '2025-08-20 11:29:51.376', NULL, '::ffff:192.168.100.2', 'c3b96161fbd0ece2f8caa2bf7782aa28', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.', 'desktop', '1.0.0', 0, '2025-09-19 12:29:51.563', 0, NULL),
+(204, 47, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ3LCJyb2xlIjoiTWFuYWdlciIsImVtcGxObyI6IjM0MDAwMCIsIm5hbWUiOiJKb3NlcGggT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTY4Nzc0NCwiZXhwIjoxNzU1NzA1NzQ0fQ.6tm1wLgCDmQ1qaqiGFJlNBZkMN_tekY9FfDo8GhzWSc', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ3LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTY4Nzc0NCwiZXhwIjoxNzU4Mjc5NzQ0fQ.Q3wLuDFVMBO383577au-Al1oWG4rPnXZaRYnPvc44_k', '2025-08-20 19:02:24.318', '2025-08-20 13:02:24.074', '2025-08-20 13:02:24.074', 1, '2025-08-20 13:02:24.074', NULL, '::ffff:192.168.100.2', 'b3be82bffe6c0557c723e78cc39a3ed4', 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mob', 'mobile', '1.0.0', 0, '2025-09-19 14:02:24.324', 0, NULL),
+(205, 45, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJyb2xlIjoiQXR0ZW5kYW50IiwiZW1wbE5vIjoiMzQwNTYiLCJuYW1lIjoiQmVuamFtaW4gT2t3YW1hIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc1NTY4ODIwMCwiZXhwIjoxNzU1NzA2MjAwfQ.E6d1K4hApgomExjFnaSVbu9GBwHe0XoJhCZRzCkoXDk', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQ1LCJ0eXBlIjoicmVmcmVzaCIsImlhdCI6MTc1NTY4ODIwMCwiZXhwIjoxNzU4MjgwMjAwfQ.QCqgMnXHsKCv_ZFsO_yKh7wHLuoFMyJFDFJGRV77RIs', '2025-08-20 19:10:00.450', '2025-08-20 13:10:00.164', '2025-08-20 13:10:00.164', 1, '2025-08-20 13:10:00.164', NULL, '::ffff:192.168.100.2', 'f70ad5053f7bd172580b679f3302b730', 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mob', 'mobile', '1.0.0', 0, '2025-09-19 14:10:00.450', 0, NULL);
 
 --
 -- Triggers `tokens`
@@ -845,14 +1301,57 @@ CREATE TABLE `users` (
 INSERT INTO `users` (`id`, `username`, `password`, `email`, `role`, `created_at`, `updated_at`) VALUES
 (7, 'admin', '$2a$10$EZ0JqGFCZ90/cmijwcW1V.lRnw.TEFtWD4wA/fntMWMH9rC1XUATy', 'admin@example.com', 'admin', '2025-06-05 18:34:36.371', '2025-06-05 18:34:36.371');
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `vehicle_conversions`
+--
+
+CREATE TABLE `vehicle_conversions` (
+  `id` int(11) NOT NULL,
+  `vehicle_plate` varchar(20) NOT NULL,
+  `vehicle_type` varchar(50) NOT NULL,
+  `conversion_type` varchar(100) NOT NULL,
+  `amount_charged` decimal(10,2) NOT NULL,
+  `service_date` date NOT NULL,
+  `comment` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `vehicle_conversions`
+--
+
+INSERT INTO `vehicle_conversions` (`id`, `vehicle_plate`, `vehicle_type`, `conversion_type`, `amount_charged`, `service_date`, `comment`, `created_at`) VALUES
+(1, 'KDA 101B', 'Probox', 'Partial', 7000.00, '2025-08-20', 'bb', '2025-08-20 10:59:45'),
+(2, 'KBZ 115S', 'Probox', 'Full', 15000.00, '2025-08-20', 'testing', '2025-08-20 11:20:44');
+
 --
 -- Indexes for dumped tables
 --
 
 --
+-- Indexes for table `account_category`
+--
+ALTER TABLE `account_category`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `account_types`
+--
+ALTER TABLE `account_types`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `branches`
 --
 ALTER TABLE `branches`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `chart_of_accounts`
+--
+ALTER TABLE `chart_of_accounts`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -903,6 +1402,16 @@ ALTER TABLE `leave_types`
   ADD UNIQUE KEY `name` (`name`);
 
 --
+-- Indexes for table `lpg_conversions`
+--
+ALTER TABLE `lpg_conversions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_station_id` (`station_id`),
+  ADD KEY `idx_staff_id` (`staff_id`),
+  ADD KEY `idx_conversion_date` (`conversion_date`),
+  ADD KEY `idx_conversion_type` (`conversion_type`);
+
+--
 -- Indexes for table `notices`
 --
 ALTER TABLE `notices`
@@ -936,6 +1445,15 @@ ALTER TABLE `sales`
 ALTER TABLE `seals`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `seals_seal_number_key` (`seal_number`);
+
+--
+-- Indexes for table `sos`
+--
+ALTER TABLE `sos`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_staff_id` (`staff_id`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_created_at` (`created_at`);
 
 --
 -- Indexes for table `staff`
@@ -1012,14 +1530,38 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `email` (`email`);
 
 --
+-- Indexes for table `vehicle_conversions`
+--
+ALTER TABLE `vehicle_conversions`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- AUTO_INCREMENT for dumped tables
 --
+
+--
+-- AUTO_INCREMENT for table `account_category`
+--
+ALTER TABLE `account_category`
+  MODIFY `id` int(3) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `account_types`
+--
+ALTER TABLE `account_types`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `branches`
 --
 ALTER TABLE `branches`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `chart_of_accounts`
+--
+ALTER TABLE `chart_of_accounts`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=145;
 
 --
 -- AUTO_INCREMENT for table `checkin_records`
@@ -1031,7 +1573,7 @@ ALTER TABLE `checkin_records`
 -- AUTO_INCREMENT for table `clients`
 --
 ALTER TABLE `clients`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `client_category`
@@ -1043,7 +1585,7 @@ ALTER TABLE `client_category`
 -- AUTO_INCREMENT for table `client_ledger`
 --
 ALTER TABLE `client_ledger`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `fuel_products`
@@ -1056,6 +1598,12 @@ ALTER TABLE `fuel_products`
 --
 ALTER TABLE `leave_types`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `lpg_conversions`
+--
+ALTER TABLE `lpg_conversions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `notices`
@@ -1079,7 +1627,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT for table `seals`
@@ -1088,10 +1636,16 @@ ALTER TABLE `seals`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `sos`
+--
+ALTER TABLE `sos`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
 -- AUTO_INCREMENT for table `staff`
 --
 ALTER TABLE `staff`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=46;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=48;
 
 --
 -- AUTO_INCREMENT for table `staff_leaves`
@@ -1121,25 +1675,31 @@ ALTER TABLE `station_price`
 -- AUTO_INCREMENT for table `station_stock_ledger`
 --
 ALTER TABLE `station_stock_ledger`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `station_store`
 --
 ALTER TABLE `station_store`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `tokens`
 --
 ALTER TABLE `tokens`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=196;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=206;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `vehicle_conversions`
+--
+ALTER TABLE `vehicle_conversions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 -- --------------------------------------------------------
 
@@ -1168,6 +1728,13 @@ ALTER TABLE `clients`
   ADD CONSTRAINT `client_typ` FOREIGN KEY (`client_type_Id`) REFERENCES `client_category` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
+-- Constraints for table `lpg_conversions`
+--
+ALTER TABLE `lpg_conversions`
+  ADD CONSTRAINT `fk_lpg_conversions_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_lpg_conversions_station` FOREIGN KEY (`station_id`) REFERENCES `stations` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `pumps`
 --
 ALTER TABLE `pumps`
@@ -1180,6 +1747,12 @@ ALTER TABLE `sales`
   ADD CONSTRAINT `sales_ibfk_1` FOREIGN KEY (`station_id`) REFERENCES `stations` (`id`),
   ADD CONSTRAINT `sales_ibfk_2` FOREIGN KEY (`vehicle_id`) REFERENCES `branches` (`id`),
   ADD CONSTRAINT `staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`);
+
+--
+-- Constraints for table `sos`
+--
+ALTER TABLE `sos`
+  ADD CONSTRAINT `fk_sos_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `staff`

@@ -17,9 +17,9 @@ let Sos = class Sos {
     latitude;
     longitude;
     status;
-    guard_name;
+    staff_name;
     comment;
-    guard_id;
+    staff_id;
     created_at;
     updated_at;
 };
@@ -47,7 +47,7 @@ __decorate([
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
     __metadata("design:type", String)
-], Sos.prototype, "guard_name", void 0);
+], Sos.prototype, "staff_name", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'text', nullable: true }),
     __metadata("design:type", String)
@@ -55,7 +55,7 @@ __decorate([
 __decorate([
     (0, typeorm_1.Column)({ type: 'int' }),
     __metadata("design:type", Number)
-], Sos.prototype, "guard_id", void 0);
+], Sos.prototype, "staff_id", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

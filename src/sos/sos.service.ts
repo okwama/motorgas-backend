@@ -37,9 +37,9 @@ export class SosService {
     return [sosAlerts, total];
   }
 
-  async findByGuard(guardId: number): Promise<[Sos[], number]> {
+  async findByStaff(staffId: number): Promise<[Sos[], number]> {
     const [sosAlerts, total] = await this.sosRepository.findAndCount({
-      where: { guard_id: guardId },
+      where: { staff_id: staffId },
       order: {
         created_at: 'DESC',
       },

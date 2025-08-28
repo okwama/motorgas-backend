@@ -15,7 +15,7 @@ export declare class SosController {
         data: import("../entities/sos.entity").Sos[];
         total: number;
     }>;
-    findByGuard(guardId: string): Promise<{
+    findByStaff(staffId: string): Promise<{
         data: import("../entities/sos.entity").Sos[];
         total: number;
     }>;

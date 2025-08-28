@@ -42,9 +42,9 @@ let SosService = class SosService {
         });
         return [sosAlerts, total];
     }
-    async findByGuard(guardId) {
+    async findByStaff(staffId) {
         const [sosAlerts, total] = await this.sosRepository.findAndCount({
-            where: { guard_id: guardId },
+            where: { staff_id: staffId },
             order: {
                 created_at: 'DESC',
             },

@@ -7,7 +7,7 @@ export declare class SosService {
     constructor(sosRepository: Repository<Sos>);
     findAll(page?: number, limit?: number): Promise<[Sos[], number]>;
     findActive(): Promise<[Sos[], number]>;
-    findByGuard(guardId: number): Promise<[Sos[], number]>;
+    findByStaff(staffId: number): Promise<[Sos[], number]>;
     findOne(id: number): Promise<Sos>;
     create(createSosDto: CreateSosDto): Promise<Sos>;
     update(id: number, updateSosDto: UpdateSosDto): Promise<Sos>;

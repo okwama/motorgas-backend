@@ -26,8 +26,41 @@ let StaffController = class StaffController {
         this.staffRepository = staffRepository;
         this.checkinRepository = checkinRepository;
     }
+    async getAllStaff(req) {
+        const currentStaff = await this.staffRepository.findOne({
+            where: { id: req.user.userId },
+        });
+        if (!currentStaff || currentStaff.role !== 'Manager') {
+            throw new Error('Unauthorized access - Manager role required');
+        }
+        const allStaff = await this.staffRepository.find({
+            relations: ['station'],
+            order: { name: 'ASC' },
+        });
+        return {
+            success: true,
+            data: allStaff.map(staff => ({
+                id: staff.id,
+                name: staff.name,
+                phone: staff.phone,
+                role: staff.role,
+                empl_no: staff.empl_no,
+                station_id: staff.station_id,
+                station: staff.station,
+                photo_url: staff.photo_url,
+                status: staff.status,
+                created_at: staff.created_at,
+            })),
+        };
+    }
     async getStaffById(id, req) {
-        if (req.user.userId !== id) {
+        const currentStaff = await this.staffRepository.findOne({
+            where: { id: req.user.userId },
+        });
+        if (!currentStaff) {
+            throw new Error('User not found');
+        }
+        if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
             throw new Error('Unauthorized access');
         }
         const staff = await this.staffRepository.findOne({
@@ -49,11 +82,35 @@ let StaffController = class StaffController {
             status: staff.status,
         };
     }
+    async createStaff(staffData, req) {
+        const currentStaff = await this.staffRepository.findOne({
+            where: { id: req.user.userId },
+        });
+        if (!currentStaff || currentStaff.role !== 'Manager') {
+            throw new Error('Unauthorized access - Manager role required');
+        }
+        const newStaff = this.staffRepository.create(staffData);
+        const savedStaff = await this.staffRepository.save(newStaff);
+        return {
+            success: true,
+            data: savedStaff,
+            message: 'Staff created successfully',
+        };
+    }
     async updateStaff(id, updateData, req) {
-        if (req.user.userId !== id) {
+        const currentStaff = await this.staffRepository.findOne({
+            where: { id: req.user.userId },
+        });
+        if (!currentStaff) {
+            throw new Error('User not found');
+        }
+        if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
             throw new Error('Unauthorized access');
         }
-        const allowedFields = ['name', 'phone', 'photo_url'];
+        let allowedFields = ['name', 'phone', 'photo_url'];
+        if (currentStaff.role === 'Manager') {
+            allowedFields = ['name', 'phone', 'photo_url', 'role', 'empl_no', 'id_no', 'salary', 'status'];
+        }
         const filteredData = Object.keys(updateData)
             .filter(key => allowedFields.includes(key))
             .reduce((obj, key) => {
@@ -61,10 +118,16 @@ let StaffController = class StaffController {
             return obj;
         }, {});
         await this.staffRepository.update(id, filteredData);
-        return { success: true, message: 'Profile updated successfully' };
+        return { success: true, message: 'Staff updated successfully' };
     }
     async getStaffStatistics(id, req) {
-        if (req.user.userId !== id) {
+        const currentStaff = await this.staffRepository.findOne({
+            where: { id: req.user.userId },
+        });
+        if (!currentStaff) {
+            throw new Error('User not found');
+        }
+        if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
             throw new Error('Unauthorized access');
         }
         const checkinRecords = await this.checkinRepository.find({
@@ -90,7 +153,13 @@ let StaffController = class StaffController {
         };
     }
     async getStaffActivity(id, req) {
-        if (req.user.userId !== id) {
+        const currentStaff = await this.staffRepository.findOne({
+            where: { id: req.user.userId },
+        });
+        if (!currentStaff) {
+            throw new Error('User not found');
+        }
+        if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
             throw new Error('Unauthorized access');
         }
         const checkinRecords = await this.checkinRepository.find({
@@ -110,7 +179,13 @@ let StaffController = class StaffController {
         }));
     }
     async getStaffPerformance(id, req) {
-        if (req.user.userId !== id) {
+        const currentStaff = await this.staffRepository.findOne({
+            where: { id: req.user.userId },
+        });
+        if (!currentStaff) {
+            throw new Error('User not found');
+        }
+        if (currentStaff.role !== 'Manager' && req.user.userId !== id) {
             throw new Error('Unauthorized access');
         }
         const checkinRecords = await this.checkinRepository.find({
@@ -142,6 +217,13 @@ let StaffController = class StaffController {
 };
 exports.StaffController = StaffController;
 __decorate([
+    (0, common_1.Get)('all'),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], StaffController.prototype, "getAllStaff", null);
+__decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Request)()),
@@ -149,6 +231,14 @@ __decorate([
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", Promise)
 ], StaffController.prototype, "getStaffById", null);
+__decorate([
+    (0, common_1.Post)('create'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], StaffController.prototype, "createStaff", null);
 __decorate([
     (0, common_1.Put)(':id'),
     __param(0, (0, common_1.Param)('id')),

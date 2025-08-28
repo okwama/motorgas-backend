@@ -24,6 +24,7 @@ import { LeaveModule } from './leave/leave.module';
 import { UploadModule } from './upload/upload.module';
 import { SalesModule } from './sales/sales.module';
 import { RolesModule } from './roles/roles.module';
+import { VehicleConversionsModule } from './vehicle-conversions/vehicle-conversions.module';
 
 @Module({
   imports: [
@@ -41,6 +42,17 @@ import { RolesModule } from './roles/roles.module';
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: false, // Set to false for production
       logging: process.env.NODE_ENV === 'development',
+      // Connection timeout settings
+      connectTimeout: 30000,
+      acquireTimeout: 30000,
+      // timeout: 30000,
+      // Connection pool settings
+      extra: {
+        connectionLimit: 10,
+        acquireTimeout: 30000,
+        timeout: 30000,
+        reconnect: true,
+      },
     }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'your-secret-key',
@@ -69,6 +81,7 @@ import { RolesModule } from './roles/roles.module';
     UploadModule,
     SalesModule,
     RolesModule,
+          VehicleConversionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

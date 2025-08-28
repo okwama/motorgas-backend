@@ -5,6 +5,21 @@ export declare class StaffController {
     private staffRepository;
     private checkinRepository;
     constructor(staffRepository: Repository<Staff>, checkinRepository: Repository<CheckinRecord>);
+    getAllStaff(req: any): Promise<{
+        success: boolean;
+        data: {
+            id: number;
+            name: string;
+            phone: string;
+            role: string;
+            empl_no: string;
+            station_id: number;
+            station: import("../entities/station.entity").Station;
+            photo_url: string;
+            status: number;
+            created_at: Date;
+        }[];
+    }>;
     getStaffById(id: number, req: any): Promise<{
         id: number;
         name: string;
@@ -15,6 +30,11 @@ export declare class StaffController {
         station: import("../entities/station.entity").Station;
         photo_url: string;
         status: number;
+    }>;
+    createStaff(staffData: any, req: any): Promise<{
+        success: boolean;
+        data: Staff[];
+        message: string;
     }>;
     updateStaff(id: number, updateData: any, req: any): Promise<{
         success: boolean;

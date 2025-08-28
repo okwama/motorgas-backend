@@ -4,9 +4,9 @@ export declare class Sos {
     latitude: number;
     longitude: number;
     status: string;
-    guard_name: string;
+    staff_name: string;
     comment: string;
-    guard_id: number;
+    staff_id: number;
     created_at: Date;
     updated_at: Date;
 }

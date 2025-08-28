@@ -3,11 +3,11 @@ import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 export class CreateSosDto {
   @IsNumber()
   @IsNotEmpty()
-  guard_id: number;
+  staff_id: number;
 
   @IsString()
   @IsNotEmpty()
-  guard_name: string;
+  staff_name: string;
 
   @IsNumber()
   @IsNotEmpty()
